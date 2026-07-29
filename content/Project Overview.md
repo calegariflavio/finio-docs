@@ -1,6 +1,6 @@
 # Finio — Project Overview
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-28*
 
 ---
 
@@ -19,14 +19,14 @@ It is not a toy. It has real auth, a real payment wall (Stripe), a real email fl
 |---|---|
 | Language | Java 21 |
 | Framework | Spring Boot 3.x |
-| Auth | Stateless JWT (BCrypt passwords) |
+| Auth | Stateless JWT via HttpOnly cookie (BCrypt passwords) |
 | Database | PostgreSQL 15+ via Spring Data JPA / Hibernate |
 | Migrations | Flyway (`V1__` → `V20__`) |
 | Object mapping | MapStruct |
 | Email | Spring Mail → Gmail SMTP |
 | Payments | Stripe (Checkout, Webhooks, Subscriptions) |
 | Rate limiting | Bucket4j (10 req/min per IP on auth endpoints) |
-| API docs | SpringDoc OpenAPI / Swagger UI |
+| API docs | SpringDoc OpenAPI / Swagger UI (admin-only) |
 | Scheduling | Spring `@Scheduled` |
 | Build | Maven 3.9+ |
 
@@ -40,7 +40,7 @@ It is not a toy. It has real auth, a real payment wall (Stripe), a real email fl
 | Forms | React Hook Form + Zod |
 | UI components | shadcn/ui (Radix primitives + Tailwind) |
 | Charts | Recharts |
-| HTTP client | Axios (with JWT interceptor) |
+| HTTP client | Axios (`withCredentials: true`, cookie-based auth) |
 | Notifications | Sonner (toast) |
 | Animations | canvas-confetti (goal completion) |
 | Testing (unit) | Vitest + Testing Library |
@@ -58,7 +58,7 @@ It is not a toy. It has real auth, a real payment wall (Stripe), a real email fl
 ## Project goals
 
 1. Ship a deployed, publicly accessible URL before end of 2026.
-2. Demonstrate: stateless JWT auth, Stripe integration, scheduled jobs, GDPR-style data export + deletion, Playwright E2E testing.
+2. Demonstrate: HttpOnly cookie JWT auth, Stripe integration, scheduled jobs, GDPR-style data export + deletion, Playwright E2E testing.
 3. Keep the codebase clean enough to walk through in a technical interview.
 
 ---
@@ -78,6 +78,6 @@ fullstack-scaffold/
 
 ## Links
 
-- Swagger UI (local): http://localhost:8080/swagger-ui.html
+- Swagger UI (local, admin only): http://localhost:8080/swagger-ui.html
 - Frontend dev (local): http://localhost:5173
 - Stripe dashboard: https://dashboard.stripe.com
