@@ -4,6 +4,29 @@
 
 ---
 
+## 2026-07-28
+
+### OWASP Top 10 security review + fixes
+
+Three security commits landed:
+
+- **`fb9bfdd`** — Actuator health details restricted to authorized users (`show-details: when-authorized`). Swagger/OpenAPI gated behind `ROLE_ADMIN`.
+- **`495127f`** — JWT moved from `localStorage`/`sessionStorage` to an `HttpOnly; SameSite=Strict` cookie (`auth-token`). `rememberMe=true` → 30-day Max-Age, unchecked → session cookie. New `POST /api/auth/logout` endpoint clears the cookie server-side. `JwtAuthenticationFilter` reads cookie first, falls back to `Authorization: Bearer` for API clients. Frontend updated: `withCredentials: true`, no token in storage, `AuthContext` no longer holds token state. Auth tests rewritten. Storage Policy page updated.
+- **`92b9c92`** — Storage Policy effective date updated to 2026-07-28.
+
+Remaining low-severity items (see [[Known Issues#Security notes]]):
+- `COOKIE_SECURE=true` must be set in production.
+- No Content-Security-Policy header configured.
+- JWT has no revocation mechanism (password change invalidates old tokens, but logout doesn't revoke until expiry — mitigated by short expiry).
+- Run `mvn dependency:check` and `npm audit` before prod deploy.
+
+### Legal pages updated (effective date + cookie wording)
+- Privacy Policy and Terms of Service effective dates bumped to July 28, 2026.
+- Privacy Policy section 4 reworded: removed incorrect claim that tokens are stored in `localStorage`/`sessionStorage`; now correctly describes HttpOnly cookie auth.
+- **Commit:** `dd933ea`
+
+---
+
 ## 2026-07-25
 
 ### Playwright E2E test suite (20 tests, all passing)
