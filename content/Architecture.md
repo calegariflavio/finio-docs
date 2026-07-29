@@ -1,6 +1,6 @@
 # Finio — Architecture
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-28*
 
 ---
 
@@ -39,9 +39,14 @@ Errors use RFC 7807 `ProblemDetail` via `GlobalExceptionHandler`. Common error c
 ### Auth flow
 
 1. `POST /api/auth/register` → creates user, sends verification email, returns 201.
-2. User clicks link → `GET /api/auth/verify-email?token=...` → marks `emailVerified = true`, returns JWT.
-3. `POST /api/auth/login` → validates credentials + `emailVerified`, returns JWT.
-4. All subsequent requests: `Authorization: Bearer <token>` header → `JwtAuthenticationFilter` validates and sets `SecurityContext`.
+2. User clicks link → `GET /api/auth/verify-email?token=...` → marks `emailVerified = true`, sets `auth-token` cookie, returns user data.
+3. `POST /api/auth/login` → validates credentials + `emailVerified`, sets `auth-token` cookie, returns user data (no token in body).
+4. All subsequent requests: browser sends `auth-token` cookie automatically → `JwtAuthenticationFilter` reads it and sets `SecurityContext`.
+5. `POST /api/auth/logout` → server clears the `auth-token` cookie (Max-Age=0).
+
+The `auth-token` cookie is `HttpOnly; SameSite=Strict`. `rememberMe=true` sets `Max-Age=30d`; unchecked gives a session cookie. `JwtAuthenticationFilter` also accepts `Authorization: Bearer <token>` as a fallback for API/mobile clients.
+
+> **Production requirement:** Set `COOKIE_SECURE=true` so the `auth-token` cookie is transmitted over HTTPS only. Default is `false` for local dev.
 
 JWT expiry is configurable via `JWT_EXPIRATION_MS` env var (default 24 h).
 
@@ -64,24 +69,24 @@ Stripe checkout → webhook (`checkout.session.completed`) → `UserService.upgr
 
 ### Security headers
 
-HSTS, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` (no camera/mic/geo/payment) are set on every response.
+HSTS, `X-Content-Type-Options`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` (no camera/mic/geo/payment) are set on every response. `/actuator/health` returns only `{"status":"UP"}` to unauthenticated callers (`show-details: when-authorized`).
 
 ### Public endpoints (no JWT required)
 
 ```
 POST /api/auth/register
 POST /api/auth/login
+POST /api/auth/logout
 GET  /api/auth/verify-email
 POST /api/auth/resend-verification
 POST /api/auth/forgot-password
 POST /api/auth/reset-password
 GET  /api/health
 POST /api/stripe/webhook          ← signature-verified inside handler
-/swagger-ui/**
-/actuator/health
+/actuator/health                  ← status only; full details require ADMIN
 ```
 
-`/actuator/**` (other than `/health`) and `/api/admin/**` require `ROLE_ADMIN`.
+`/actuator/**` (other than `/health`), `/api/admin/**`, `/swagger-ui/**`, and `/api-docs/**` require `ROLE_ADMIN`.
 
 ---
 
@@ -107,15 +112,17 @@ src/
 
 ### API layer
 
-`axiosInstance.ts` attaches the JWT from `localStorage` (rememberMe) or `sessionStorage`. Global interceptor:
-- `401` on a non-login endpoint → clear storage + redirect to `/login`.
+`axiosInstance.ts` uses `withCredentials: true` so the browser sends the `auth-token` HttpOnly cookie on every request automatically. No token is stored in `localStorage` or `sessionStorage`. Global response interceptor:
+- `401` on a non-login endpoint → redirect to `/login`.
 - `403` → redirect to `/forbidden`.
 
 `financeApi.ts` and `authApi.ts` wrap every call in `unwrap()` which extracts `.data.data` from the `ApiResponse` envelope, so hooks receive the actual payload directly.
 
 ### Auth state
 
-`AuthContext` / `useAuth()` holds `{ user, token, isAuthenticated }`. `ProtectedRoute` wraps all authenticated pages — unauthenticated users are redirected to `/login`.
+`AuthContext` / `useAuth()` holds `{ user, isAuthenticated }`. On mount it calls `GET /api/auth/me` — if the `auth-token` cookie is valid the user is hydrated; if not, the user stays `null`. `ProtectedRoute` wraps all authenticated pages — unauthenticated users are redirected to `/login`.
+
+> **No token in JS:** The JWT lives exclusively in the HttpOnly cookie. No token is held in React state, `localStorage`, or `sessionStorage` — it is invisible to JavaScript entirely.
 
 ### Data fetching
 
