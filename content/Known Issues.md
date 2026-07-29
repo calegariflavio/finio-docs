@@ -1,6 +1,6 @@
 # Finio — Known Issues & Technical Debt
 
-*Last updated: 2026-07-25*
+*Last updated: 2026-07-28*
 
 ---
 
@@ -25,6 +25,13 @@
 ---
 
 ## Resolved issues (reference)
+
+### Security hardening (fixed 2026-07-28)
+- **Actuator health details:** `show-details: when-authorized` — unauthenticated callers now receive `{"status":"UP"}` only.
+- **Swagger gated:** `/swagger-ui/**` and `/api-docs/**` now require `ROLE_ADMIN` instead of `permitAll`.
+- **JWT moved to HttpOnly cookie:** `auth-token` cookie (`HttpOnly; SameSite=Strict`) replaces `localStorage`/`sessionStorage`. Frontend uses `withCredentials: true`. Logout clears the cookie server-side. `JwtAuthenticationFilter` still accepts `Authorization: Bearer` as fallback for API clients.
+- **Legal pages updated** to reflect cookie-based auth (effective date: 2026-07-28).
+- **Commits:** `fb9bfdd`, `495127f`, `92b9c92`, `dd933ea`
 
 ### 401 interceptor cleared login error (fixed 2026-07-25)
 - **What:** `axiosInstance` was intercepting every 401 response and redirecting to `/login`. When the login endpoint itself returned 401 (wrong password), the page reloaded before the error state could be set — so the "Invalid email or password" message never appeared.
@@ -52,9 +59,16 @@
 
 ---
 
-## Security notes (informational)
+## Security notes
 
-- Rate limiting (Bucket4j) is applied per-IP. In production behind Nginx, ensure `X-Forwarded-For` is trusted so the real client IP is used, not the proxy IP. The current `SecurityConfig` doesn't explicitly configure trusted proxies — this could cause rate limiting to apply to Nginx's localhost IP instead of the real client.
+### Production deployment checklist
+- Set `COOKIE_SECURE=true` so the `auth-token` cookie is only sent over HTTPS.
+- No Content-Security-Policy header is configured — adding one would harden against XSS vectors.
+- JWT has no revocation mechanism. Password change invalidates old tokens via `passwordChangedAt`, but logout relies on cookie expiry (default 24 h).
+- Run `mvn dependency:check` and `npm audit` before going live.
+
+### Informational
+- Rate limiting (Bucket4j) is applied per-IP. `AuthRateLimitFilter` trusts `X-Forwarded-For` only when the direct connection comes from a private/loopback address — correct for a single reverse proxy on the same host. Verify in multi-instance or multi-hop proxy setups.
 - Stripe webhooks are signature-verified inside `StripeService`. The endpoint is `permitAll()` in Spring Security by design.
 - Admin role is bootstrapped via `ADMIN_EMAIL` env var. There is no admin self-registration path.
 - JWT secret must be a minimum of 256 bits (32+ random bytes). A short secret is vulnerable to brute-force.
